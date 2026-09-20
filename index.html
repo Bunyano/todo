@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#191a1d">
 <title>To-Do</title>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3QgeD0iMiIgeT0iMiIgd2lkdGg9IjI4IiBoZWlnaHQ9IjI4IiByeD0iNyIgZmlsbD0iIzViYjBhMCIvPjxwYXRoIGQ9Ik05IDE2LjVsNC41IDQuNUwyMyAxMSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   :root{
@@ -48,7 +49,7 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .status-row{display:flex; align-items:center; justify-content:space-between; gap:10px;
     max-width:640px; margin:6px auto 0; padding:0 16px}
-  .status{font-size:.78rem; color:var(--muted); display:flex; align-items:center; gap:6px; min-height:1.1em; min-width:0}
+  .status{font-size:.78rem; color:var(--muted); display:flex; align-items:center; gap:6px; min-height:1.1em; min-width:0; flex:1}
   .status #statusText{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .status .dot{width:7px; height:7px; border-radius:50%; background:var(--faint); flex:none}
   .status.clean .dot{background:var(--accent)}
@@ -56,12 +57,15 @@
   .status.busy .dot{background:#d8a24a; animation:pulse 1s infinite}
   .status.err .dot{background:var(--danger)}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-  .barbtn{
-    appearance:none; background:none; border:1px solid var(--line); color:var(--muted);
-    font:inherit; font-size:.8rem; padding:7px 14px; border-radius:9px; cursor:pointer; flex:none;
+  .toolbtn{
+    appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--muted);
+    width:36px; height:36px; border-radius:9px; padding:0; cursor:pointer; flex:none;
+    display:inline-flex; align-items:center; justify-content:center;
   }
-  .barbtn:active{color:var(--ink)}
-  .barbtn[disabled]{opacity:.35; pointer-events:none}
+  .toolbtn:active{transform:scale(.95); color:var(--ink)}
+  .toolbtn.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+  .toolbtn[disabled]{opacity:.35; pointer-events:none}
+  .toolbtn svg{width:18px; height:18px; display:block}
 
   .iconbtn{
     appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--ink);
@@ -79,7 +83,7 @@
   main{margin-top:14px}
   .section{margin:0 0 26px}
   .sec-head{
-    display:flex; align-items:baseline; gap:8px;
+    display:flex; align-items:center; gap:8px;
     font-size:.82rem; font-weight:650; color:var(--muted); letter-spacing:.02em;
     padding:0 4px 8px; border-bottom:1px solid var(--line-soft); margin-bottom:4px;
   }
@@ -137,6 +141,15 @@
     display:inline-flex; align-items:center; justify-content:center;
   }
   .sec-del:active{color:var(--danger); background:color-mix(in srgb, var(--danger) 14%, transparent)}
+  .sec-grip{
+    flex:none; display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; margin-right:2px; color:var(--faint);
+    cursor:grab; touch-action:none;
+  }
+  .sec-grip:active{cursor:grabbing; color:var(--muted)}
+  .sec-grip svg{width:12px; height:18px; display:block}
+  .section.sec-ghost{opacity:.4}
+  .section.sec-float{background:var(--elev); border-radius:12px; box-shadow:0 10px 28px rgba(0,0,0,.4)}
 
   .add-row{
     display:flex; align-items:center; gap:10px; padding:9px 4px; color:var(--muted);
@@ -218,7 +231,8 @@
   </div>
   <div class="status-row">
     <div class="status" id="status"><span class="dot"></span><span id="statusText">Loading…</span></div>
-    <button class="barbtn" id="btnUndo" hidden disabled>Undo</button>
+    <button class="toolbtn" id="btnUndo" hidden disabled aria-label="Undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v1"/></svg></button>
+    <button class="toolbtn" id="btnEdit" hidden aria-label="Edit sections"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
   </div>
 </header>
 
@@ -292,6 +306,7 @@ var dirty = false;
 var saving = false;
 var changeSeq = 0;
 var autosaveTimer = null;
+var sectionEdit = false;
 
 // ---------- storage ----------
 function loadCfg(){
@@ -429,20 +444,30 @@ function render(){
   });
   if(current.heading || current.items.length) groups.push(current);
 
+  var sectionsWrap = el("div"); sectionsWrap.id = "sections";
+
   groups.forEach(function(g){
     var sec = el("section","section");
+    sec.__heading = g.heading || null;
     if(g.heading){
       var h = el("div","sec-head");
+      if(sectionEdit && hasSortable()){
+        var sgrip = el("div","sec-grip"); sgrip.innerHTML = GRIP_SVG;
+        sgrip.setAttribute("aria-label","Drag to reorder section");
+        h.appendChild(sgrip);
+      }
       h.appendChild(el("span",null,g.heading.text));
       var tasks = g.items.filter(function(n){return n.type==="task";});
       if(tasks.length){
         var doneCount = tasks.filter(function(n){return n.done;}).length;
         h.appendChild(el("span","count", doneCount+"/"+tasks.length));
       }
-      var sdel = el("button","sec-del","\u00d7");
-      sdel.setAttribute("aria-label","Delete section");
-      (function(head){ sdel.onclick = function(){ deleteSection(head); }; })(g.heading);
-      h.appendChild(sdel);
+      if(sectionEdit){
+        var sdel = el("button","sec-del","\u00d7");
+        sdel.setAttribute("aria-label","Delete section");
+        (function(head){ sdel.onclick = function(){ deleteSection(head); }; })(g.heading);
+        h.appendChild(sdel);
+      }
       sec.appendChild(h);
     }
     var itemsEl = el("div","items");
@@ -450,8 +475,10 @@ function render(){
     g.items.forEach(function(n){ itemsEl.appendChild(renderRow(n)); });
     sec.appendChild(itemsEl);
     sec.appendChild(renderAddRow(g.heading));
-    list.appendChild(sec);
+    sectionsWrap.appendChild(sec);
   });
+
+  list.appendChild(sectionsWrap);
 
   var addSec = el("button","add-section","+  New section");
   addSec.onclick = addSection;
@@ -463,7 +490,7 @@ function render(){
 function renderRow(node){
   var row = el("div","row"+(node.type==="task"&&node.done?" checked":""));
   row.__node = node;
-  if(hasSortable()){
+  if(hasSortable() && !sectionEdit){
     var grip = el("div","grip"); grip.innerHTML = GRIP_SVG;
     grip.setAttribute("aria-label","Drag to reorder");
     row.appendChild(grip);
@@ -490,6 +517,19 @@ function renderRow(node){
 
 function initSortables(){
   if(!hasSortable()) return;
+  if(sectionEdit){
+    var wrap = document.getElementById("sections");
+    if(wrap){
+      sortables.push(Sortable.create(wrap, {
+        group:"sections", draggable:".section", handle:".sec-grip", animation:150,
+        forceFallback:true, fallbackOnBody:true, swapThreshold:0.6,
+        ghostClass:"sec-ghost", dragClass:"sec-float",
+        scroll:true, scrollSensitivity:60,
+        onEnd:onSectionDrop
+      }));
+    }
+    return;
+  }
   var containers = document.getElementById("list").querySelectorAll(".items");
   Array.prototype.forEach.call(containers, function(c){
     sortables.push(Sortable.create(c, {
@@ -513,6 +553,39 @@ function onDrop(evt){
     setDirty(true);
     rerender();
   }, 0);
+}
+function onSectionDrop(){
+  var wrap = document.getElementById("sections");
+  var order = [];
+  if(wrap){
+    Array.prototype.forEach.call(wrap.querySelectorAll(".section"), function(s){ order.push(s.__heading || null); });
+  }
+  setTimeout(function(){
+    pushUndo();
+    reorderSections(order);
+    setDirty(true);
+    rerender();
+  }, 0);
+}
+// rebuild the model so whole section blocks follow the given heading order
+function reorderSections(order){
+  var blocks = [], cur = {heading:null, nodes:[]};
+  for(var i=0;i<model.length;i++){
+    var n = model[i];
+    if(n.type==="heading"){ blocks.push(cur); cur = {heading:n, nodes:[n]}; }
+    else cur.nodes.push(n);
+  }
+  blocks.push(cur);
+  var leading = (blocks.length && blocks[0].heading===null) ? blocks.shift() : {heading:null, nodes:[]};
+  var newModel = leading.nodes.slice(), used = [];
+  order.forEach(function(h){
+    if(!h) return;
+    for(var b=0;b<blocks.length;b++){
+      if(used.indexOf(b)<0 && blocks[b].heading===h){ newModel = newModel.concat(blocks[b].nodes); used.push(b); break; }
+    }
+  });
+  for(var b=0;b<blocks.length;b++){ if(used.indexOf(b)<0) newModel = newModel.concat(blocks[b].nodes); }
+  model = newModel;
 }
 
 function renderAddRow(heading){
@@ -698,6 +771,9 @@ async function load(){
     undoStack = [];
     var ub = document.getElementById("btnUndo");
     ub.hidden = false; ub.disabled = true;
+    sectionEdit = false;
+    var eb = document.getElementById("btnEdit");
+    eb.hidden = false; eb.classList.remove("on");
     setStatus("clean","All saved");
   }catch(e){ handleError(e, "load"); }
 }
@@ -843,6 +919,11 @@ document.getElementById("btnSettings").onclick = openSetup;
 document.getElementById("msgSettings").onclick = openSetup;
 document.getElementById("autosave").onchange = updateAutosaveUI;
 document.getElementById("btnUndo").onclick = undo;
+document.getElementById("btnEdit").onclick = function(){
+  sectionEdit = !sectionEdit;
+  document.getElementById("btnEdit").classList.toggle("on", sectionEdit);
+  rerender();
+};
 document.getElementById("btnRefresh").onclick = function(){
   if(dirty && !confirm("Discard unsaved changes and reload from GitHub?")) return;
   hideMsg(); load();
