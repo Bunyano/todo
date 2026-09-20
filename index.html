@@ -485,29 +485,22 @@ function startAdd(heading, addRowEl){
   holder.appendChild(el("div","bullet-dot")).appendChild(el("span"));
   holder.appendChild(input);
   addRowEl.replaceWith(holder); input.focus();
-  function finish(save){
+  var committed = false;
+  function commit(save){
+    if(committed) return;      // guard: only ever add once
+    committed = true;
+    input.onblur = null;       // stop the re-render's blur from re-triggering us
     var val = input.value.trim();
     if(save && val){
-      var node = {type:"task", indent:"", done:false, text:val};
-      insertIntoSection(heading, node);
+      insertIntoSection(heading, {type:"task", indent:"", done:false, text:val});
       setDirty(true);
     }
     render();
   }
-  input.onblur = function(){ finish(true); };
+  input.onblur = function(){ commit(true); };
   input.onkeydown = function(e){
-    if(e.key==="Enter"){
-      e.preventDefault();
-      var val = input.value.trim();
-      if(val){
-        insertIntoSection(heading, {type:"task", indent:"", done:false, text:val});
-        setDirty(true);
-      }
-      render();
-      // re-open an add box in the same section for fast entry
-      var secs = document.querySelectorAll(".section");
-      // best-effort: just re-render leaves add row; user taps again
-    } else if(e.key==="Escape"){ input.onblur=null; render(); }
+    if(e.key==="Enter"){ e.preventDefault(); commit(true); }
+    else if(e.key==="Escape"){ commit(false); }
   };
 }
 function insertIntoSection(heading, node){
