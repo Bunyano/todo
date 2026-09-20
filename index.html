@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#191a1d">
+<title>To-Do</title>
+<style>
+  :root{
+    --bg:#191a1d; --surface:#1f2125; --elev:#26282d;
+    --ink:#e9e7e1; --muted:#9b9a95; --faint:#6f6e69;
+    --line:#2e3036; --line-soft:#26282d;
+    --accent:#5bb0a0; --accent-ink:#0e1a17;
+    --danger:#cf7367;
+    --radius:14px;
+    --tap:44px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f5f3ee; --surface:#ffffff; --elev:#ffffff;
+      --ink:#26241f; --muted:#6d6a63; --faint:#9a968d;
+      --line:#e4e0d8; --line-soft:#eeece5;
+      --accent:#2f8f7d; --accent-ink:#ffffff;
+      --danger:#b1503f;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.45;
+    padding-bottom:120px;
+  }
+  .wrap{max-width:640px; margin:0 auto; padding:0 16px}
+
+  /* Header */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:saturate(1.4) blur(10px);
+    border-bottom:1px solid var(--line-soft);
+    padding:calc(env(safe-area-inset-top) + 10px) 0 10px;
+  }
+  .head-row{display:flex; align-items:center; gap:10px; max-width:640px; margin:0 auto; padding:0 16px}
+  .title{font-size:1.15rem; font-weight:650; letter-spacing:-0.01em; margin:0; flex:1; min-width:0;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .status{font-size:.78rem; color:var(--muted); display:flex; align-items:center; gap:6px; margin:6px 16px 0; min-height:1.1em}
+  .status .dot{width:7px; height:7px; border-radius:50%; background:var(--faint); flex:none}
+  .status.clean .dot{background:var(--accent)}
+  .status.dirty .dot{background:#d8a24a}
+  .status.busy .dot{background:#d8a24a; animation:pulse 1s infinite}
+  .status.err .dot{background:var(--danger)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .iconbtn{
+    appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--ink);
+    width:var(--tap); height:var(--tap); border-radius:11px; font-size:1.05rem;
+    display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+  }
+  .iconbtn:active{transform:scale(.96)}
+  .save{
+    border:none; background:var(--accent); color:var(--accent-ink); font-weight:650;
+    padding:0 16px; height:var(--tap); border-radius:11px; cursor:pointer; font-size:.95rem; flex:none;
+  }
+  .save[disabled]{opacity:.4; pointer-events:none}
+
+  /* Sections */
+  main{margin-top:14px}
+  .section{margin:0 0 26px}
+  .sec-head{
+    display:flex; align-items:baseline; gap:8px;
+    font-size:.82rem; font-weight:650; color:var(--muted); letter-spacing:.02em;
+    padding:0 4px 8px; border-bottom:1px solid var(--line-soft); margin-bottom:4px;
+  }
+  .sec-head .count{color:var(--faint); font-weight:500; font-size:.78rem}
+
+  /* Rows */
+  .row{
+    display:flex; align-items:flex-start; gap:12px;
+    padding:11px 4px; border-bottom:1px solid var(--line-soft);
+  }
+  .row:last-child{border-bottom:none}
+  .check{
+    flex:none; width:24px; height:24px; margin-top:1px; border-radius:7px;
+    border:1.5px solid var(--faint); background:transparent; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; padding:0;
+    transition:background .12s ease, border-color .12s ease, transform .08s ease;
+  }
+  .check svg{width:14px; height:14px; opacity:0; transform:scale(.6); transition:opacity .12s, transform .12s}
+  .check.done{background:var(--accent); border-color:var(--accent)}
+  .check.done svg{opacity:1; transform:scale(1); color:var(--accent-ink)}
+  .check:active{transform:scale(.88)}
+  .bullet-dot{flex:none; width:24px; margin-top:.55em; display:flex; justify-content:center}
+  .bullet-dot span{width:5px; height:5px; border-radius:50%; background:var(--faint)}
+
+  .text{flex:1; min-width:0; font-size:1rem; word-break:break-word; cursor:text; padding-top:1px}
+  .row.checked .text{color:var(--muted); text-decoration:line-through; text-decoration-color:var(--faint)}
+  .text-input{
+    flex:1; min-width:0; font:inherit; font-size:1rem; color:var(--ink);
+    background:var(--elev); border:1px solid var(--accent); border-radius:8px; padding:6px 8px;
+  }
+  .del{
+    flex:none; appearance:none; background:none; border:none; color:var(--faint);
+    width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:1.1rem; line-height:1;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .del:active{color:var(--danger); background:color-mix(in srgb, var(--danger) 14%, transparent)}
+
+  .add-row{
+    display:flex; align-items:center; gap:10px; padding:9px 4px; color:var(--muted);
+    cursor:pointer; font-size:.95rem;
+  }
+  .add-row .plus{width:24px; text-align:center; color:var(--accent); font-weight:700}
+  .add-row:active{color:var(--ink)}
+
+  .add-section{
+    display:block; width:100%; text-align:left; margin:6px 0 40px; padding:12px 14px;
+    background:var(--surface); border:1px dashed var(--line); border-radius:var(--radius);
+    color:var(--muted); font:inherit; font-size:.95rem; cursor:pointer;
+  }
+  .add-section:active{border-color:var(--accent); color:var(--ink)}
+
+  /* Panels (setup / message) */
+  .panel{
+    position:fixed; inset:0; z-index:40; background:var(--bg);
+    display:flex; align-items:flex-start; justify-content:center; overflow:auto;
+    padding:calc(env(safe-area-inset-top) + 24px) 16px 40px;
+  }
+  .panel[hidden]{display:none}
+  .card{width:100%; max-width:460px}
+  .card h1{font-size:1.4rem; letter-spacing:-0.02em; margin:0 0 4px}
+  .card p.sub{color:var(--muted); margin:0 0 22px; font-size:.95rem}
+  label{display:block; font-size:.82rem; color:var(--muted); margin:14px 0 5px}
+  input[type=text],input[type=password]{
+    width:100%; font:inherit; font-size:1rem; color:var(--ink);
+    background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px;
+  }
+  input:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:transparent}
+  .hint{font-size:.78rem; color:var(--faint); margin:5px 0 0}
+  .hint a{color:var(--accent)}
+  .btn-primary{
+    width:100%; margin-top:22px; border:none; background:var(--accent); color:var(--accent-ink);
+    font-weight:650; font-size:1rem; padding:14px; border-radius:11px; cursor:pointer;
+  }
+  .btn-primary:active{transform:scale(.99)}
+  .btn-ghost{
+    width:100%; margin-top:10px; background:none; border:1px solid var(--line); color:var(--ink);
+    font:inherit; font-size:.95rem; padding:12px; border-radius:11px; cursor:pointer;
+  }
+  .row2{display:flex; gap:10px}
+  .row2>div{flex:1}
+  .pref-divider{height:1px; background:var(--line-soft); margin:24px 0 6px}
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin:16px 0 0; font-size:1rem; color:var(--ink); cursor:pointer; min-height:var(--tap);
+  }
+  .switch{
+    appearance:none; -webkit-appearance:none; position:relative; flex:none;
+    width:48px; height:28px; border-radius:999px; background:var(--line); border:none;
+    cursor:pointer; transition:background .15s ease;
+  }
+  .switch:checked{background:var(--accent)}
+  .switch::after{
+    content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
+    background:#fff; transition:transform .15s ease;
+  }
+  .switch:checked::after{transform:translateX(20px)}
+  .switch:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .panel-msg{text-align:center; padding-top:12vh}
+  .panel-msg .emoji{font-size:2rem}
+  .panel-msg h2{font-size:1.2rem; margin:14px 0 6px; letter-spacing:-0.01em}
+  .panel-msg p{color:var(--muted); margin:0 auto 20px; max-width:340px; font-size:.95rem}
+  .err-detail{font-size:.8rem; color:var(--faint); word-break:break-word; margin-top:4px}
+  @media (prefers-reduced-motion: reduce){*{transition:none !important; animation:none !important}}
+</style>
+</head>
+<body>
+
+<!-- App shell -->
+<header hidden id="appHeader">
+  <div class="head-row">
+    <button class="iconbtn" id="btnRefresh" title="Refresh from GitHub" aria-label="Refresh">&#8635;</button>
+    <h1 class="title" id="listTitle">To-Do</h1>
+    <button class="save" id="btnSave" disabled>Save</button>
+    <button class="iconbtn" id="btnSettings" title="Settings" aria-label="Settings">&#9881;</button>
+  </div>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">Loading…</span></div>
+</header>
+
+<div class="wrap"><main id="list" hidden></main></div>
+
+<!-- Setup panel -->
+<div class="panel" id="setup">
+  <div class="card">
+    <h1>Connect your list</h1>
+    <p class="sub">This app edits one markdown file in your GitHub repo. Nothing is stored anywhere but your own browser.</p>
+
+    <div class="row2">
+      <div>
+        <label for="owner">GitHub username</label>
+        <input type="text" id="owner" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. nick">
+      </div>
+      <div>
+        <label for="repo">Repository</label>
+        <input type="text" id="repo" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. notes">
+      </div>
+    </div>
+
+    <label for="path">File path in the repo</label>
+    <input type="text" id="path" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="To-Do-2026.md">
+    <p class="hint">Include folders if it's nested, e.g. <code>lists/To-Do-2026.md</code></p>
+
+    <label for="branch">Branch</label>
+    <input type="text" id="branch" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="main" value="main">
+
+    <label for="token">Access token</label>
+    <input type="password" id="token" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="github_pat_…">
+    <p class="hint">A fine-grained token with <strong>Contents: Read and write</strong> on just this repo. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create one</a>.</p>
+
+    <div class="pref-divider"></div>
+    <label class="toggle-row" for="autosave">
+      <span>Autosave changes</span>
+      <input type="checkbox" id="autosave" class="switch">
+    </label>
+    <div id="autosaveDelayWrap" style="display:none">
+      <label for="autosaveDelay">Save this many seconds after I stop editing</label>
+      <input type="text" inputmode="numeric" id="autosaveDelay" value="4">
+    </div>
+    <p class="hint">When on, changes commit to GitHub on their own a few seconds after you stop. Best left off unless this app is the only thing editing the file.</p>
+
+    <button class="btn-primary" id="btnConnect">Connect</button>
+    <button class="btn-ghost" id="btnCancelSetup" hidden>Cancel</button>
+    <p class="hint" id="setupErr" style="color:var(--danger)"></p>
+  </div>
+</div>
+
+<!-- Message panel (errors / empty) -->
+<div class="panel" id="msg" hidden>
+  <div class="card panel-msg">
+    <div class="emoji" id="msgEmoji">🙂</div>
+    <h2 id="msgTitle"></h2>
+    <p id="msgBody"></p>
+    <button class="btn-primary" id="msgAction"></button>
+    <button class="btn-ghost" id="msgSettings">Open settings</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+var CFG_KEY = "todo-gh-config-v1";
+var cfg = null;
+var model = [];
+var currentSha = null;
+var endsWithNewline = true;
+var dirty = false;
+var saving = false;
+var changeSeq = 0;
+var autosaveTimer = null;
+
+// ---------- storage ----------
+function loadCfg(){
+  try{ var raw = localStorage.getItem(CFG_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function saveCfg(c){
+  try{ localStorage.setItem(CFG_KEY, JSON.stringify(c)); }catch(e){}
+}
+
+// ---------- base64 (utf-8 safe) ----------
+function utf8ToB64(str){
+  var bytes = new TextEncoder().encode(str), bin = "", chunk = 0x8000;
+  for(var i=0;i<bytes.length;i+=chunk){ bin += String.fromCharCode.apply(null, bytes.subarray(i,i+chunk)); }
+  return btoa(bin);
+}
+function b64ToUtf8(b64){
+  var bin = atob((b64||"").replace(/\n/g,"")), bytes = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++){ bytes[i]=bin.charCodeAt(i); }
+  return new TextDecoder().decode(bytes);
+}
+
+// ---------- github api ----------
+function apiUrl(){
+  var p = cfg.path.split("/").map(encodeURIComponent).join("/");
+  return "https://api.github.com/repos/"+encodeURIComponent(cfg.owner)+"/"+encodeURIComponent(cfg.repo)+"/contents/"+p;
+}
+function headers(){
+  return {
+    "Authorization":"Bearer "+cfg.token,
+    "Accept":"application/vnd.github+json",
+    "X-GitHub-Api-Version":"2022-11-28"
+  };
+}
+async function ghGet(){
+  var res = await fetch(apiUrl()+"?ref="+encodeURIComponent(cfg.branch), {headers:headers()});
+  if(res.status===401) throw {code:401};
+  if(res.status===404) throw {code:404};
+  if(!res.ok) throw {code:res.status, msg:(await res.text())};
+  var data = await res.json();
+  return {text:b64ToUtf8(data.content), sha:data.sha};
+}
+async function ghPut(text, message){
+  var body = {message:message, content:utf8ToB64(text), branch:cfg.branch};
+  if(currentSha) body.sha = currentSha;
+  var res = await fetch(apiUrl(), {method:"PUT", headers:headers(), body:JSON.stringify(body)});
+  if(res.status===401) throw {code:401};
+  if(res.status===409 || res.status===422) throw {code:409};
+  if(!res.ok) throw {code:res.status, msg:(await res.text())};
+  var data = await res.json();
+  currentSha = data.content.sha;
+}
+
+// ---------- parse / serialize markdown ----------
+function parse(md){
+  endsWithNewline = /\n$/.test(md);
+  var lines = md.split("\n");
+  if(endsWithNewline) lines.pop(); // drop trailing empty from final newline
+  return lines.map(function(raw){
+    var m;
+    if((m = raw.match(/^(#{1,6})\s+(.*)$/)))         return {type:"heading", level:m[1].length, text:m[2]};
+    if((m = raw.match(/^(\s*)- \[([ xX])\]\s?(.*)$/))) return {type:"task", indent:m[1], done:m[2].toLowerCase()==="x", text:m[3]};
+    if((m = raw.match(/^(\s*)[-*]\s+(.*)$/)))          return {type:"bullet", indent:m[1], text:m[2]};
+    if(raw.trim()==="")                                return {type:"blank"};
+    return {type:"text", text:raw};
+  });
+}
+function serialize(){
+  var out = model.map(function(n){
+    if(n.type==="heading") return "#".repeat(n.level)+" "+n.text;
+    if(n.type==="task")    return n.indent+"- ["+(n.done?"x":" ")+"] "+n.text;
+    if(n.type==="bullet")  return n.indent+"- "+n.text;
+    if(n.type==="blank")   return "";
+    return n.text;
+  }).join("\n");
+  return endsWithNewline ? out+"\n" : out;
+}
+
+// ---------- state helpers ----------
+function setDirty(v){
+  dirty = v;
+  document.getElementById("btnSave").disabled = !v;
+  if(v){
+    changeSeq++;
+    if(cfg && cfg.autosave){ setStatus("dirty","Autosaving…"); scheduleAutosave(); }
+    else setStatus("dirty","Unsaved changes");
+  } else {
+    clearAutosave();
+    setStatus("clean","All saved");
+  }
+}
+function setStatus(kind, text){
+  var el = document.getElementById("status");
+  el.className = "status "+kind;
+  document.getElementById("statusText").textContent = text;
+}
+function clearAutosave(){ if(autosaveTimer){ clearTimeout(autosaveTimer); autosaveTimer = null; } }
+function scheduleAutosave(){
+  if(!cfg || !cfg.autosave) return;
+  clearAutosave();
+  var secs = Math.max(1, parseInt(cfg.autosaveDelay, 10) || 4);
+  autosaveTimer = setTimeout(function(){
+    autosaveTimer = null;
+    if(dirty && !saving) save(true);
+  }, secs*1000);
+}
+function updateAutosaveUI(){
+  document.getElementById("autosaveDelayWrap").style.display =
+    document.getElementById("autosave").checked ? "" : "none";
+}
+
+// ---------- render ----------
+function el(tag, cls, txt){ var e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; }
+var CHECK_SVG = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function render(){
+  var list = document.getElementById("list");
+  list.innerHTML = "";
+
+  // group nodes into sections by heading
+  var groups = [];
+  var current = {heading:null, items:[]};
+  model.forEach(function(n, i){
+    if(n.type==="heading"){
+      if(current.heading || current.items.length) groups.push(current);
+      current = {heading:n, items:[]};
+    } else if(n.type==="task" || n.type==="bullet"){
+      current.items.push({node:n, index:i});
+    }
+  });
+  if(current.heading || current.items.length) groups.push(current);
+
+  groups.forEach(function(g){
+    var sec = el("section","section");
+    if(g.heading){
+      var h = el("div","sec-head");
+      h.appendChild(el("span",null,g.heading.text));
+      var tasks = g.items.filter(function(it){return it.node.type==="task";});
+      if(tasks.length){
+        var doneCount = tasks.filter(function(it){return it.node.done;}).length;
+        h.appendChild(el("span","count", doneCount+"/"+tasks.length));
+      }
+      sec.appendChild(h);
+    }
+    g.items.forEach(function(it){ sec.appendChild(renderRow(it.node)); });
+    sec.appendChild(renderAddRow(g.heading));
+    list.appendChild(sec);
+  });
+
+  var addSec = el("button","add-section","+  New section");
+  addSec.onclick = addSection;
+  list.appendChild(addSec);
+}
+
+function renderRow(node){
+  var row = el("div","row"+(node.type==="task"&&node.done?" checked":""));
+  if(node.type==="task"){
+    var chk = el("button","check"+(node.done?" done":""));
+    chk.setAttribute("aria-label", node.done?"Mark not done":"Mark done");
+    chk.innerHTML = CHECK_SVG;
+    chk.onclick = function(){ toggle(node, row, chk); };
+    row.appendChild(chk);
+  } else {
+    var bd = el("div","bullet-dot"); bd.appendChild(el("span")); row.appendChild(bd);
+  }
+  var txt = el("div","text", node.text || "");
+  txt.onclick = function(){ editText(node, txt); };
+  row.appendChild(txt);
+
+  var del = el("button","del","\u00d7");
+  del.setAttribute("aria-label","Delete");
+  del.onclick = function(){ deleteNode(node); };
+  row.appendChild(del);
+  return row;
+}
+
+function renderAddRow(heading){
+  var add = el("div","add-row");
+  add.innerHTML = '<span class="plus">+</span><span>Add task</span>';
+  add.onclick = function(){ startAdd(heading, add); };
+  return add;
+}
+
+// ---------- edits ----------
+function toggle(node, row, chk){
+  node.done = !node.done;
+  chk.classList.toggle("done", node.done);
+  row.classList.toggle("checked", node.done);
+  // update the section counter
+  var head = row.parentNode.querySelector(".sec-head .count");
+  if(head){
+    var rows = row.parentNode.querySelectorAll(".row .check");
+    var done=0,total=0; rows.forEach(function(c){total++; if(c.classList.contains("done"))done++;});
+    head.textContent = done+"/"+total;
+  }
+  setDirty(true);
+}
+
+function editText(node, span){
+  var input = el("input","text-input"); input.type="text"; input.value = node.text;
+  span.replaceWith(input); input.focus();
+  var caret = input.value.length; input.setSelectionRange(caret, caret);
+  function commit(save){
+    var val = save ? input.value : node.text;
+    node.text = val;
+    var newSpan = el("div","text", val);
+    newSpan.onclick = function(){ editText(node, newSpan); };
+    if(input.parentNode) input.replaceWith(newSpan);
+    if(save && val!==undefined) setDirty(true);
+  }
+  input.onblur = function(){ commit(true); };
+  input.onkeydown = function(e){
+    if(e.key==="Enter"){ e.preventDefault(); input.blur(); }
+    else if(e.key==="Escape"){ input.onblur=null; commit(false); }
+  };
+}
+
+function indexOfHeading(heading){
+  if(!heading) return -1;
+  return model.indexOf(heading);
+}
+function startAdd(heading, addRowEl){
+  var input = el("input","text-input"); input.type="text"; input.placeholder="New task…";
+  var holder = el("div","row");
+  holder.appendChild(el("div","bullet-dot")).appendChild(el("span"));
+  holder.appendChild(input);
+  addRowEl.replaceWith(holder); input.focus();
+  function finish(save){
+    var val = input.value.trim();
+    if(save && val){
+      var node = {type:"task", indent:"", done:false, text:val};
+      insertIntoSection(heading, node);
+      setDirty(true);
+    }
+    render();
+  }
+  input.onblur = function(){ finish(true); };
+  input.onkeydown = function(e){
+    if(e.key==="Enter"){
+      e.preventDefault();
+      var val = input.value.trim();
+      if(val){
+        insertIntoSection(heading, {type:"task", indent:"", done:false, text:val});
+        setDirty(true);
+      }
+      render();
+      // re-open an add box in the same section for fast entry
+      var secs = document.querySelectorAll(".section");
+      // best-effort: just re-render leaves add row; user taps again
+    } else if(e.key==="Escape"){ input.onblur=null; render(); }
+  };
+}
+function insertIntoSection(heading, node){
+  var start = heading ? indexOfHeading(heading) : -1;
+  // find end of section: next heading after start, else end
+  var end = model.length;
+  for(var i=start+1;i<model.length;i++){ if(model[i].type==="heading"){ end=i; break; } }
+  // insert after last non-blank node within the section
+  var pos = start+1;
+  for(var j=start+1;j<end;j++){ if(model[j].type!=="blank") pos = j+1; }
+  if(pos<=start) pos = start+1;
+  model.splice(pos, 0, node);
+}
+
+function deleteNode(node){
+  var i = model.indexOf(node);
+  if(i>=0){ model.splice(i,1); setDirty(true); render(); }
+}
+
+function addSection(){
+  var name = prompt("New section name:");
+  if(!name) return;
+  name = name.trim(); if(!name) return;
+  if(model.length && model[model.length-1].type!=="blank") model.push({type:"blank"});
+  model.push({type:"heading", level:2, text:name});
+  model.push({type:"blank"});
+  setDirty(true); render();
+}
+
+// ---------- load / save ----------
+async function load(){
+  showApp();
+  setStatus("busy","Loading…");
+  try{
+    var r = await ghGet();
+    model = parse(r.text);
+    currentSha = r.sha;
+    dirty = false;
+    document.getElementById("btnSave").disabled = true;
+    render();
+    document.getElementById("list").hidden = false;
+    setStatus("clean","All saved");
+  }catch(e){ handleError(e, "load"); }
+}
+
+async function save(isAuto){
+  if(!dirty || saving) return;
+  clearAutosave();
+  saving = true;
+  var seq = changeSeq;
+  setStatus("busy","Saving…");
+  document.getElementById("btnSave").disabled = true;
+  try{
+    var stamp = new Date().toLocaleString();
+    await ghPut(serialize(), "Update to-do — "+stamp);
+    saving = false;
+    if(changeSeq === seq){
+      setDirty(false);               // nothing changed while we saved
+    } else {
+      // edits arrived mid-save — keep them pending so they get saved too
+      document.getElementById("btnSave").disabled = false;
+      if(cfg && cfg.autosave){ setStatus("dirty","Autosaving…"); scheduleAutosave(); }
+      else setStatus("dirty","Unsaved changes");
+    }
+  }catch(e){
+    saving = false;
+    document.getElementById("btnSave").disabled = false;
+    if(e.code===409){
+      setStatus("err","Changed on GitHub — refresh first");
+      showMsg("🔄","This list changed elsewhere",
+        "Someone (or another device) saved a newer version. Refresh to pull it in, then re-apply your changes.",
+        "Refresh now", function(){ hideMsg(); load(); });
+    } else if(isAuto && e.message && /Failed to fetch|NetworkError|Load failed/i.test(e.message)){
+      // background blip: don't interrupt with a modal; retry on next edit or manual Save
+      setStatus("err","Autosave failed — tap Save to retry");
+    } else { handleError(e, "save"); }
+  }
+}
+
+function handleError(e, where){
+  if(e.code===401){
+    setStatus("err","Token rejected");
+    showMsg("🔑","Access token was rejected",
+      "The token is missing, expired, or lacks Contents write access to this repo. Update it in settings.",
+      "Open settings", openSetup);
+  } else if(e.code===404){
+    setStatus("err","File not found");
+    showMsg("🔍","Couldn't find that file",
+      "Check the username, repository, branch, and file path are exactly right — they're case-sensitive.",
+      "Open settings", openSetup);
+  } else if(e.message && /Failed to fetch|NetworkError|Load failed/i.test(e.message)){
+    setStatus("err","No connection");
+    showMsg("📡","Can't reach GitHub",
+      "Check your internet connection and try again.",
+      "Try again", function(){ hideMsg(); (where==="save"?save:load)(); });
+  } else {
+    setStatus("err","Something went wrong");
+    var det = e.msg ? String(e.msg).slice(0,180) : (e.message||("HTTP "+(e.code||"?")));
+    showMsg("⚠️","Something went wrong",
+      "GitHub returned an error. You can try again or check your settings.",
+      "Try again", function(){ hideMsg(); (where==="save"?save:load)(); }, det);
+  }
+}
+
+// ---------- panels ----------
+function showApp(){
+  document.getElementById("setup").hidden = true;
+  document.getElementById("appHeader").hidden = false;
+}
+function showMsg(emoji, title, body, action, fn, detail){
+  document.getElementById("msgEmoji").textContent = emoji;
+  document.getElementById("msgTitle").textContent = title;
+  document.getElementById("msgBody").textContent = body;
+  var b = document.getElementById("msgAction");
+  b.textContent = action; b.onclick = fn;
+  var existing = document.querySelector(".err-detail"); if(existing) existing.remove();
+  if(detail){
+    var d = el("p","err-detail", detail);
+    document.getElementById("msgBody").after(d);
+  }
+  document.getElementById("msg").hidden = false;
+}
+function hideMsg(){ document.getElementById("msg").hidden = true; }
+
+function openSetup(){
+  hideMsg();
+  if(cfg){
+    document.getElementById("owner").value = cfg.owner||"";
+    document.getElementById("repo").value = cfg.repo||"";
+    document.getElementById("path").value = cfg.path||"";
+    document.getElementById("branch").value = cfg.branch||"main";
+    document.getElementById("token").value = cfg.token||"";
+    document.getElementById("btnCancelSetup").hidden = false;
+  }
+  document.getElementById("autosave").checked = !!(cfg && cfg.autosave);
+  document.getElementById("autosaveDelay").value = (cfg && cfg.autosaveDelay) ? cfg.autosaveDelay : 4;
+  updateAutosaveUI();
+  document.getElementById("btnConnect").textContent = cfg ? "Save settings" : "Connect";
+  document.getElementById("setupErr").textContent = "";
+  document.getElementById("setup").hidden = false;
+  document.getElementById("appHeader").hidden = true;
+}
+
+// ---------- wire up ----------
+document.getElementById("btnConnect").onclick = function(){
+  var c = {
+    owner:  document.getElementById("owner").value.trim(),
+    repo:   document.getElementById("repo").value.trim(),
+    path:   document.getElementById("path").value.trim(),
+    branch: document.getElementById("branch").value.trim() || "main",
+    token:  document.getElementById("token").value.trim(),
+    autosave: document.getElementById("autosave").checked,
+    autosaveDelay: Math.max(1, parseInt(document.getElementById("autosaveDelay").value, 10) || 4)
+  };
+  if(!c.owner || !c.repo || !c.path || !c.token){
+    document.getElementById("setupErr").textContent = "Fill in username, repository, file path, and token.";
+    return;
+  }
+  var connChanged = !cfg || cfg.owner!==c.owner || cfg.repo!==c.repo ||
+                    cfg.path!==c.path || cfg.branch!==c.branch || cfg.token!==c.token;
+  cfg = c; saveCfg(cfg);
+  document.getElementById("listTitle").textContent = c.path.split("/").pop().replace(/\.md$/,"");
+  if(connChanged || !model.length){
+    currentSha = null;
+    load();
+  } else {
+    // only preferences changed — keep the current list and any unsaved edits
+    document.getElementById("setup").hidden = true;
+    showApp();
+    clearAutosave();
+    if(dirty){
+      if(cfg.autosave){ setStatus("dirty","Autosaving…"); scheduleAutosave(); }
+      else setStatus("dirty","Unsaved changes");
+    } else {
+      setStatus("clean","All saved");
+    }
+  }
+};
+document.getElementById("btnCancelSetup").onclick = function(){
+  if(cfg){ document.getElementById("setup").hidden = true; showApp(); }
+};
+document.getElementById("btnSave").onclick = function(){ save(false); };
+document.getElementById("btnSettings").onclick = openSetup;
+document.getElementById("msgSettings").onclick = openSetup;
+document.getElementById("autosave").onchange = updateAutosaveUI;
+document.getElementById("btnRefresh").onclick = function(){
+  if(dirty && !confirm("Discard unsaved changes and reload from GitHub?")) return;
+  hideMsg(); load();
+};
+
+window.addEventListener("beforeunload", function(e){
+  if(dirty){ e.preventDefault(); e.returnValue = ""; }
+});
+
+// ---------- boot ----------
+cfg = loadCfg();
+if(cfg){
+  document.getElementById("listTitle").textContent = (cfg.path||"To-Do").split("/").pop().replace(/\.md$/,"");
+  load();
+} else {
+  document.getElementById("path").value = "To-Do-2026.md";
+}
+</script>
+</body>
+</html>
