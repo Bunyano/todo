@@ -148,6 +148,7 @@
   }
   .sec-grip:active{cursor:grabbing; color:var(--muted)}
   .sec-grip svg{width:12px; height:18px; display:block}
+  .sec-head .editable{cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px}
   .section.sec-ghost{opacity:.4}
   .section.sec-float{background:var(--elev); border-radius:12px; box-shadow:0 10px 28px rgba(0,0,0,.4)}
 
@@ -472,7 +473,9 @@ function render(){
         sgrip.setAttribute("aria-label","Drag to reorder section");
         h.appendChild(sgrip);
       }
-      h.appendChild(el("span",null,g.heading.text));
+      var titleSpan = el("span", sectionEdit?"editable":null, g.heading.text);
+      if(sectionEdit){ (function(head){ titleSpan.onclick = function(){ renameSection(head); }; })(g.heading); }
+      h.appendChild(titleSpan);
       var tasks = g.items.filter(function(n){return n.type==="task";});
       if(tasks.length){
         var doneCount = tasks.filter(function(n){return n.done;}).length;
@@ -604,9 +607,13 @@ function reorderSections(order){
   model = newModel;
 }
 
+// a section named "Remember" holds plain notes (bullets), not checkbox tasks
+function isNoteSection(heading){
+  return !!(heading && heading.text && heading.text.trim().toLowerCase() === "remember");
+}
 function renderAddRow(heading){
   var add = el("div","add-row");
-  add.innerHTML = '<span class="plus">+</span><span>Add task</span>';
+  add.innerHTML = '<span class="plus">+</span><span>'+(isNoteSection(heading)?'Add note':'Add task')+'</span>';
   add.onclick = function(){ startAdd(heading, add); };
   return add;
 }
@@ -657,7 +664,8 @@ function indexOfHeading(heading){
   return model.indexOf(heading);
 }
 function startAdd(heading, addRowEl){
-  var input = el("input","text-input"); input.type="text"; input.placeholder="New task…";
+  var note = isNoteSection(heading);
+  var input = el("input","text-input"); input.type="text"; input.placeholder = note ? "New note…" : "New task…";
   var holder = el("div","row");
   holder.appendChild(el("div","bullet-dot")).appendChild(el("span"));
   holder.appendChild(input);
@@ -670,7 +678,9 @@ function startAdd(heading, addRowEl){
     var val = input.value.trim();
     if(save && val){
       pushUndo();
-      insertIntoSection(heading, {type:"task", indent:"", done:false, text:val});
+      var node = note ? {type:"bullet", indent:"", text:val}
+                      : {type:"task", indent:"", done:false, text:val};
+      insertIntoSection(heading, node);
       setDirty(true);
     }
     render();
@@ -707,6 +717,16 @@ function addSection(){
   model.push({type:"heading", level:2, text:name});
   model.push({type:"blank"});
   setDirty(true); render();
+}
+
+function renameSection(headingNode){
+  var name = prompt("Rename section:", headingNode.text);
+  if(name===null) return;
+  name = name.trim();
+  if(!name || name===headingNode.text) return;
+  pushUndo();
+  headingNode.text = name;
+  setDirty(true); rerender();
 }
 
 // re-render without losing the scroll position (nice for nudging items around)
