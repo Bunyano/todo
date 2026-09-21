@@ -231,6 +231,7 @@
   </div>
   <div class="status-row">
     <div class="status" id="status"><span class="dot"></span><span id="statusText">Loading…</span></div>
+    <button class="toolbtn" id="btnArchive" hidden aria-label="Move completed to archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></button>
     <button class="toolbtn" id="btnUndo" hidden disabled aria-label="Undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v1"/></svg></button>
     <button class="toolbtn" id="btnEdit" hidden aria-label="Edit sections"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
   </div>
@@ -258,6 +259,10 @@
     <label for="path">File path in the repo</label>
     <input type="text" id="path" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="To-Do-2026.md">
     <p class="hint">Include folders if it's nested, e.g. <code>lists/To-Do-2026.md</code></p>
+
+    <label for="archivePath">Completed-items file <span style="color:var(--faint)">(optional)</span></label>
+    <input type="text" id="archivePath" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Done-2026.md">
+    <p class="hint">Another file in the same repo. The archive button moves ticked items here as a plain completed list. Leave blank to hide the button.</p>
 
     <label for="branch">Branch</label>
     <input type="text" id="branch" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="main" value="main">
@@ -330,8 +335,8 @@ function b64ToUtf8(b64){
 }
 
 // ---------- github api ----------
-function apiUrl(){
-  var p = cfg.path.split("/").map(encodeURIComponent).join("/");
+function apiUrlFor(path){
+  var p = path.split("/").map(encodeURIComponent).join("/");
   return "https://api.github.com/repos/"+encodeURIComponent(cfg.owner)+"/"+encodeURIComponent(cfg.repo)+"/contents/"+p;
 }
 function headers(){
@@ -341,22 +346,33 @@ function headers(){
     "X-GitHub-Api-Version":"2022-11-28"
   };
 }
-async function ghGet(){
-  var res = await fetch(apiUrl()+"?ref="+encodeURIComponent(cfg.branch), {headers:headers()});
+// read any file; returns {text, sha} or null if it doesn't exist (404)
+async function ghGetPath(path){
+  var res = await fetch(apiUrlFor(path)+"?ref="+encodeURIComponent(cfg.branch), {headers:headers()});
+  if(res.status===404) return null;
   if(res.status===401) throw {code:401};
-  if(res.status===404) throw {code:404};
   if(!res.ok) throw {code:res.status, msg:(await res.text())};
   var data = await res.json();
   return {text:b64ToUtf8(data.content), sha:data.sha};
 }
-async function ghPut(text, message){
+// write any file; pass sha to update, or null to create; returns the response
+async function ghPutPath(path, text, sha, message){
   var body = {message:message, content:utf8ToB64(text), branch:cfg.branch};
-  if(currentSha) body.sha = currentSha;
-  var res = await fetch(apiUrl(), {method:"PUT", headers:headers(), body:JSON.stringify(body)});
+  if(sha) body.sha = sha;
+  var res = await fetch(apiUrlFor(path), {method:"PUT", headers:headers(), body:JSON.stringify(body)});
   if(res.status===401) throw {code:401};
   if(res.status===409 || res.status===422) throw {code:409};
   if(!res.ok) throw {code:res.status, msg:(await res.text())};
-  var data = await res.json();
+  return await res.json();
+}
+// main-file wrappers (track currentSha)
+async function ghGet(){
+  var r = await ghGetPath(cfg.path);
+  if(r===null) throw {code:404};
+  return r;
+}
+async function ghPut(text, message){
+  var data = await ghPutPath(cfg.path, text, currentSha, message);
   currentSha = data.content.sha;
 }
 
@@ -756,6 +772,64 @@ function deleteSection(headingNode){
   setDirty(true); rerender();
 }
 
+// ---------- archive completed ----------
+function archiveEnabled(){
+  return !!(cfg && cfg.archivePath && cfg.archivePath !== cfg.path);
+}
+function updateArchiveBtn(){
+  var b = document.getElementById("btnArchive");
+  if(b) b.hidden = !archiveEnabled();
+}
+async function archiveCompleted(){
+  if(!archiveEnabled() || saving) return;
+  var done = model.filter(function(n){ return n.type==="task" && n.done; });
+  if(!done.length){ setStatus("clean","No completed items to move"); return; }
+  var name = cfg.archivePath.split("/").pop();
+  if(!confirm("Move "+done.length+" completed item"+(done.length===1?'':'s')+" to "+name+"?")) return;
+
+  saving = true;
+  clearAutosave();
+  setStatus("busy","Archiving…");
+  document.getElementById("btnArchive").disabled = true;
+  document.getElementById("btnSave").disabled = true;
+  try{
+    // 1) append the ticked items to the archive file (create it if missing) — do this FIRST
+    var stamp = new Date().toLocaleString();
+    var addition = done.map(function(n){ return "- [x] " + n.text; }).join("\n") + "\n";
+    var arch = await ghGetPath(cfg.archivePath);   // {text, sha} or null
+    var archText;
+    if(arch){
+      archText = arch.text;
+      if(archText.length && !/\n$/.test(archText)) archText += "\n";
+      archText += addition;
+    } else {
+      archText = addition;
+    }
+    await ghPutPath(cfg.archivePath, archText, arch ? arch.sha : null, "Archive completed — "+stamp);
+
+    // 2) remove the ticked items from the main list (keep section headers) and save it
+    var prevModel = model, mutated = false;
+    model = model.filter(function(n){ return !(n.type==="task" && n.done); });
+    mutated = true;
+    await ghPut(serialize(), "Move completed to archive — "+stamp);
+
+    saving = false;
+    dirty = false;
+    changeSeq++;                 // invalidate any in-flight autosave comparison
+    undoStack = [];              // archive is a commit point; reset undo history
+    updateUndoBtn();
+    document.getElementById("btnArchive").disabled = false;
+    rerender();
+    setStatus("clean","Moved "+done.length+" to "+name);
+  }catch(e){
+    saving = false;
+    if(mutated){ model = prevModel; rerender(); }   // main save failed — put items back (they're safe in the archive)
+    document.getElementById("btnArchive").disabled = false;
+    document.getElementById("btnSave").disabled = !dirty;
+    handleError(e, "archive");
+  }
+}
+
 // ---------- load / save ----------
 async function load(){
   showApp();
@@ -774,6 +848,7 @@ async function load(){
     sectionEdit = false;
     var eb = document.getElementById("btnEdit");
     eb.hidden = false; eb.classList.remove("on");
+    updateArchiveBtn();
     setStatus("clean","All saved");
   }catch(e){ handleError(e, "load"); }
 }
@@ -869,6 +944,7 @@ function openSetup(){
   }
   document.getElementById("autosave").checked = !!(cfg && cfg.autosave);
   document.getElementById("autosaveDelay").value = (cfg && cfg.autosaveDelay) ? cfg.autosaveDelay : 4;
+  document.getElementById("archivePath").value = (cfg && cfg.archivePath) ? cfg.archivePath : "";
   updateAutosaveUI();
   document.getElementById("btnConnect").textContent = cfg ? "Save settings" : "Connect";
   document.getElementById("setupErr").textContent = "";
@@ -884,6 +960,7 @@ document.getElementById("btnConnect").onclick = function(){
     path:   document.getElementById("path").value.trim(),
     branch: document.getElementById("branch").value.trim() || "main",
     token:  document.getElementById("token").value.trim(),
+    archivePath: document.getElementById("archivePath").value.trim(),
     autosave: document.getElementById("autosave").checked,
     autosaveDelay: Math.max(1, parseInt(document.getElementById("autosaveDelay").value, 10) || 4)
   };
@@ -895,6 +972,7 @@ document.getElementById("btnConnect").onclick = function(){
                     cfg.path!==c.path || cfg.branch!==c.branch || cfg.token!==c.token;
   cfg = c; saveCfg(cfg);
   document.getElementById("listTitle").textContent = c.path.split("/").pop().replace(/\.md$/,"");
+  updateArchiveBtn();
   if(connChanged || !model.length){
     currentSha = null;
     load();
@@ -919,6 +997,7 @@ document.getElementById("btnSettings").onclick = openSetup;
 document.getElementById("msgSettings").onclick = openSetup;
 document.getElementById("autosave").onchange = updateAutosaveUI;
 document.getElementById("btnUndo").onclick = undo;
+document.getElementById("btnArchive").onclick = archiveCompleted;
 document.getElementById("btnEdit").onclick = function(){
   sectionEdit = !sectionEdit;
   document.getElementById("btnEdit").classList.toggle("on", sectionEdit);
